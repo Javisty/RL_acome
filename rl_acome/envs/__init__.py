@@ -1,3 +1,1 @@
-"""
-Define MDPs environments
-"""
+"""Define MDPs environments."""

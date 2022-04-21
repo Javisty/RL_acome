@@ -5,11 +5,12 @@ description = ""
 authors = ["Javisty <aymec.78620@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.10,<3.11"
 gym = "^0.23.1"
+pytest = ">=6.2.5"
+scipy = "^1.8.0"
 
 [tool.poetry.dev-dependencies]
-pytest = "^5.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

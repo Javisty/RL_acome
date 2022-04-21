@@ -41,6 +41,9 @@ class DiscreteEnv(Env):
     --------
     reset
     step
+    seed
+    sample_next_state
+    sample_reward
     """
 
     def __init__(self, P, R, mu0, r_lim=(0, 1), seed=None, name="DiscreteMDP"):
@@ -85,7 +88,7 @@ class DiscreteEnv(Env):
         r = self.sample_reward(self.s, a)
 
         self.lastaction = a
-        return self.s, r
+        return self.s, r, False, ""
 
     def sample_next_state(self, s, a):
         """Sample a next state coming from state s with action a."""
@@ -93,4 +96,4 @@ class DiscreteEnv(Env):
 
     def sample_reward(self, s, a):
         """Sample a reward for taking action a in state s."""
-        return np.clip(self.R[s, a].rvs(), *self.reward_range)
+        return np.clip(self.R[s][a].rvs(), *self.reward_range)

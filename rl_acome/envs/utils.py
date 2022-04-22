@@ -16,3 +16,30 @@ def assert_is_transition_matrix(P):
     np.testing.assert_allclose(P.sum(axis=2), 1,
                                err_msg=("Probabilities should sum to 1 over "
                                         "the last dimension."))
+
+
+class Constant:
+    """
+    Constant random variable.
+
+    Usage similar to scipy.stats random variables.
+
+    Parameters:
+    -----------
+    value : float-like
+        The constant value of the random variable.
+
+    Methods:
+    --------
+    rvs
+    mean
+    """
+
+    def __init__(self, value):
+        self.v = value
+
+    def rvs(self):
+        return self.v
+
+    def mean(self):
+        return self.v

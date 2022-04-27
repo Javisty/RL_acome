@@ -9,6 +9,7 @@ python = ">=3.10,<3.11"
 gym = "^0.23.1"
 pytest = ">=6.2.5"
 scipy = "^1.8.0"
+rlberry = {git = "https://github.com/rlberry-py/rlberry.git", rev = "v0.2.1"}
 
 [tool.poetry.dev-dependencies]
 

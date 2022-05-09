@@ -22,11 +22,13 @@ class UCRL2(AgentWithSimplePolicy):
         Confidence factor.
     r_max : float, default 1.
         Maximum value for reward in environments.
+    n_EVI : int > 0, default 1000
+        Maximum number of iterations for EVI, in case it doesn't converge.
     **kwargs :
         Additional keyword arguments are passed to AgentWithSimplePolicy.
     """
 
-    def __init__(self, env, delta=0.1, r_max=1., **kwargs):
+    def __init__(self, env, delta=0.1, r_max=1., n_EVI=1000, **kwargs):
         # Check arguments
         assert delta > 0, "The confidence factor must be positive"
         assert r_max < float('inf'), "The problem must be bounded in reward!"
@@ -34,6 +36,8 @@ class UCRL2(AgentWithSimplePolicy):
         assert isinstance(env.action_space, spaces.Discrete)
 
         AgentWithSimplePolicy.__init__(self, env, **kwargs)
+
+        self.n_evi = n_EVI
 
         self.delta = delta
         self.r_max = r_max
@@ -54,7 +58,7 @@ class UCRL2(AgentWithSimplePolicy):
         self.sa_counts = np.ones((self.S, self.A), dtype=int)
 
         # Accumulated rewards before episode
-        self.reward_counts = np.zeros((self.S, self.A))
+        self.r_accum = np.zeros((self.S, self.A))
 
         # Transition (s, a, s') counts before episode
         self.sas_counts = np.zeros((self.S, self.A, self.S), dtype=int)
@@ -63,7 +67,7 @@ class UCRL2(AgentWithSimplePolicy):
 
     def compute_estimates(self):
         """Compute and returns current estimates for reward and transitions."""
-        return self.reward_counts/self.sa_counts, self.sas_counts/self.sa_counts[:, :, np.newaxis]
+        return self.r_accum/self.sa_counts, self.sas_counts/self.sa_counts[:, :, np.newaxis]
 
     def reward_bound(self):
         """Return the reward optimistic bounds."""
@@ -92,6 +96,7 @@ class UCRL2(AgentWithSimplePolicy):
         d_r : (S, A) numpy.array
             The optimistic bounds on estimated reward.
         d_p : (S, A) numpy.array
+
             The optimistic bounds on estimated transition kernel.
         epsilon : float >= 0
             The precision of EVI.
@@ -104,17 +109,25 @@ class UCRL2(AgentWithSimplePolicy):
         S = self.S
 
         u0, u = np.zeros(S), np.zeros(S)
+        proba_max = np.zeros_like(p_hat)
+
+        n_iter, n_max = 0, self.n_evi
 
         diff = float('inf')
-        while diff > epsilon:
+        while diff > epsilon and n_iter < n_max:
             proba_max = self.inner_max_EVI(p_hat, d_p, u0)
             inner_max = proba_max @ u0
-            q = r_hat + inner_max  # Q-value function
+            q = r_hat + d_r + inner_max  # Q-value function
             u = np.max(q, axis=-1)  # update value
 
             grad = np.abs(u - u0)
             diff = np.max(grad) - np.min(grad)
             u0 = u
+
+            n_iter += 1
+
+        if n_iter >= n_max:
+            print("EVI didn't converge")
 
         return u, greedy_policy(q)
 
@@ -140,15 +153,17 @@ class UCRL2(AgentWithSimplePolicy):
         The (S, A) maximal scalar product over the last dimension.
         """
         sorted = list(np.argsort(value))
-        l = sorted.pop()  # index of highest value not visited yet in value
+        idx = sorted.pop()  # index of highest value
+        sorted = sorted[::-1]
 
         p_max = np.copy(p)
-        p_max[:, :, l] = np.minimum(1, p[:, :, l] + bound)
+        p_max[:, :, idx] = np.minimum(1, p[:, :, idx] + bound/2)
 
         while (np.sum(p_max, axis=-1) > 1).any():
-            l = sorted.pop()
-            p_max[:, :, l] = np.maximum(0, 1 - np.sum(np.delete(p_max, [l]),
-                                                      axis=-1))
+            idx = sorted.pop()  # index of lowest value not visited yet
+            p_max[:, :, idx] = np.maximum(0, 1 - np.sum(np.delete(p_max, [idx],
+                                                                  axis=-1),
+                                                        axis=-1))
 
         return p_max
 
@@ -187,11 +202,12 @@ class UCRL2(AgentWithSimplePolicy):
             The cumulative reward obtained during learning.
         """
         s = self.env.state  # current state and action
+        print()
 
         while self.t < budget:
             self.episode += 1
             self.tk = self.t
-            print(f"Starting episode {self.episode} at time-step {self.t}")
+            print(f"\rStarting episode {self.episode} at time-step {self.t}")
 
             self.episode_counts.fill(0)
 
@@ -203,7 +219,7 @@ class UCRL2(AgentWithSimplePolicy):
 
                 # Update counts, except for sa_counts
                 self.episode_counts[s, a] += 1
-                self.reward_counts[s, a] += r
+                self.r_accum[s, a] += r
                 self.sas_counts[s, a, s_next] += 1
 
                 if done:  # for episodic tasks
@@ -222,7 +238,7 @@ class UCRL2(AgentWithSimplePolicy):
         self.tk = self.t
 
         self.pi = self.compute_empirical_policy()
-        return self.pi, self.reward_counts.sum()
+        return self.pi, self.r_accum.sum()
 
     def policy(self, state):
         """Deterministic policy."""

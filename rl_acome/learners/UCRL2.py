@@ -133,7 +133,7 @@ class UCRL2(AgentWithSimplePolicy):
 
     def inner_max_EVI(self, p, bound, value):
         """
-        Compute the maximum scalar product between value and optimistic probas.
+        Compute the optimistic probas maximizing the scalar product with value.
 
         The optimistic probability distributions are the set of probabilities
         distant from p by less than bound, w.r.t. l1 norm. This is a convex
@@ -150,7 +150,7 @@ class UCRL2(AgentWithSimplePolicy):
 
         Output:
         -------
-        The (S, A) maximal scalar product over the last dimension.
+        The (S, A, S) maximal optimistic probability distribution.
         """
         sorted = list(np.argsort(value))
         idx = sorted.pop()  # index of highest value
@@ -179,9 +179,9 @@ class UCRL2(AgentWithSimplePolicy):
         """Return the policy based on current observations."""
         r_hat, p_hat = self.compute_estimates()
         d_r, d_p = np.zeros((self.S, self.A)), np.zeros((self.S, self.A))
-        tk = self.tk
+        eps = 1/np.sqrt(self.tk)
 
-        return self.extended_value_iteration(r_hat, p_hat, d_r, d_p, tk)[1]
+        return self.extended_value_iteration(r_hat, p_hat, d_r, d_p, eps)[1]
 
     def fit(self, budget, **kwargs):
         """

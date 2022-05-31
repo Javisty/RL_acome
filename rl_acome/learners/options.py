@@ -1,4 +1,4 @@
-"""Provide the Option class, cf Sutton & al. (1999)."""
+"""Provide options framework, cf Sutton & al. (1999)."""
 import numpy as np
 import numpy.random as npr
 from scipy.stats import bernoulli
@@ -18,6 +18,10 @@ class Option:
     met. Options are a form of prior knowledge over a MDP (giving optimal
     policies for sub-problems), and many algorithms have been developped to use
     it with benefits.
+
+    Notes:
+    ------
+    Only discrete environments are accepted so far.
 
     Parameters:
     -----------
@@ -89,16 +93,16 @@ class Option:
 
         Output:
         -------
-        s : int
-            Starting state.
-        R : float
-            Accumulated reward during the option.
         s_next : int
             Terminating state.
+        R : float
+            Accumulated reward during the option.
+        t : int
+            Duration of the execution.
         """
         env = self.env
         s = env.state
-        R = 0
+        R, t = 0, 0
 
         assert self.is_initiation_state(s), "Not an initiation state!"
 
@@ -107,5 +111,87 @@ class Option:
         while not terminate:
             s_next, r, terminate = self.step()
             R += r
+            t += 1
 
-        return s, R, s_next
+        return s_next, R, t
+
+
+class OptionSet:
+    """
+    Interface to use a set of Options altogether.
+
+    Parameters:
+    -----------
+    env : gym.Env or tuple (constructor, kwargs)
+        Environment on which all the options operate.
+    options : list of Option
+        The set of options.
+
+    Notes:
+    ------
+    Only discrete environments are accepted so far.
+
+    Methods:
+    --------
+    check_options_compatibility
+    buil_map
+    available_options
+    get_option
+    """
+
+    def __init__(self, env, options):
+        self.env = env
+        self.options = options
+        self.O = len(options)
+
+        self.check_options_compatibility()
+        self.build_map()
+
+    def check_options_compatibility(self):
+        """Check that the options share the good environment."""
+        incompatible = list()
+        env = self.env
+        for i, o in enumerate(self.options):
+            if o.env != env:
+                incompatible.append(i)
+
+        assert not incompatible, (f"Options {incompatible} aren't defined on "
+                                  "the good environemnt!")
+
+    def build_map(self):
+        """Build a mapping between states and starting options in states."""
+        S = self.env.observation_space.n
+        state_options = np.zeros((S, self.O), dtype=bool)
+
+        for i, o in enumerate(self.options):
+            state_options[:, i] = o.I
+
+        self.mask = state_options
+        # Transform it to a dictionary of arrays of indices
+        self.state_options = {s: np.where(state_options[s, :])[0]
+                              for s in range(S)}
+
+    def available_options(self, s):
+        """Return the array of indices of options starting at state."""
+        return self.state_options[s]
+
+    def get_option(self, i):
+        """Return the option at index i."""
+        return self.options[i]
+
+    def play_option(self, i):
+        """Make option i play."""
+        return self.get_option(i).play()
+
+
+def create_primitive_options(env):
+    """Return the list of primitive options."""
+    from rlberry.envs import FiniteMDP
+    assert isinstance(env, FiniteMDP)
+
+    pi = np.zeros((env.A, env.S, env.A))
+    for a in range(env.A):
+        pi[a, :, a] = 1
+    beta = np.ones((env.A, env.S))
+
+    return [Option(env, list(range(env.S)), p, b) for p, b in zip(pi, beta)]

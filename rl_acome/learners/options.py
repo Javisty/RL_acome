@@ -188,6 +188,21 @@ class OptionSet:
         """Make option i play on env."""
         return self.get_option(i).play(env=env)
 
+    def is_admissible(self):
+        """
+        Return whether the option set is admissible.
+
+        An option set is admissible if all options run in finite time, and the
+        set of terminal states is included in the set of initiation states.
+        The first condition is not tested, so we assume it holds.
+        """
+        # Mask pointing all terminal states
+        terminal = np.zeros(self.env.observation_space.n, dtype=bool)
+        for o in self.options:
+            terminal |= (o.beta > 0)
+
+        return (~terminal | self.mask.any(axis=-1)).all()
+
 
 def create_primitive_options(env):
     """Return the list of primitive options."""

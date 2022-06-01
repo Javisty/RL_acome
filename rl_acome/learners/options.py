@@ -87,9 +87,14 @@ class Option:
 
         return s_next, r, self.terminate(s_next) or done
 
-    def play(self):
+    def play(self, env=None):
         """
         Play the option from current state until termination.
+
+        Parameters:
+        -----------
+        env : gym.Env or None, default None
+            Environment on which the option is played. If None, use self.env.
 
         Output:
         -------
@@ -100,7 +105,7 @@ class Option:
         t : int
             Duration of the execution.
         """
-        env = self.env
+        env = self.env if env is None else env
         s = env.state
         R, t = 0, 0
 
@@ -179,9 +184,9 @@ class OptionSet:
         """Return the option at index i."""
         return self.options[i]
 
-    def play_option(self, i):
-        """Make option i play."""
-        return self.get_option(i).play()
+    def play_option(self, i, env=None):
+        """Make option i play on env."""
+        return self.get_option(i).play(env=env)
 
 
 def create_primitive_options(env):

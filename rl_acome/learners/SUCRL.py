@@ -3,13 +3,13 @@ import numpy as np
 from numpy import ma
 
 import gym.spaces as spaces
-from rlberry.agents import AgentWithSimplePolicy
+from rlberry.agents import Agent
 
 from .options import OptionSet
 from .utils import greedy_policy
 
 
-class SUCRL(AgentWithSimplePolicy):
+class SUCRL(Agent):
     """
     UCRL-SMDP algorithm from [1]. Direct adaptation of UCRL [2] on semi-MDPs.
 
@@ -60,7 +60,7 @@ class SUCRL(AgentWithSimplePolicy):
         assert isinstance(options, OptionSet)
         assert options.env == env, "The options environment doesn't match env!"
 
-        AgentWithSimplePolicy.__init__(self, env, **kwargs)
+        Agent.__init__(self, env, **kwargs)
         self.options = options
 
         self.n_evi = n_EVI
@@ -355,14 +355,45 @@ class SUCRL(AgentWithSimplePolicy):
         self.pi = self.compute_empirical_policy()
         return self.pi, self.r_accum.sum()
 
-    def play_option(self, idx):
+    def play_option(self, idx, env=None):
         """
         Play option until termination.
 
         Return next state, accumulated reward and duration.
         """
-        return self.options.get_option(idx).play()
+        return self.options.play_option(idx, env=env)
 
     def policy(self, state):
-        """Deterministic policy."""
+        """Deterministic policy over options."""
         return self.pi[state]
+
+    def eval(self, eval_horizon=10 ** 5, n_simulations=10, **kwargs):
+        """
+        Monte-Carlo policy evaluation to estimate the value of initial state.
+
+        Parameters:
+        -----------
+        eval_horizon : int, default 10**5
+            Horizon, maximum episode length.
+        n_simulations : int, default 10
+            Number of Monte Carlo simulations.
+
+        Output:
+        -------
+        Mean over the n simulations of the sum of rewards in each simulation.
+        """
+        del kwargs  # unused
+        env = self.eval_env
+
+        episode_rewards = np.zeros(n_simulations)
+        for sim in range(n_simulations):
+            s = env.reset()
+            tt = 0
+
+            while tt < eval_horizon:
+                option = self.policy(s)
+                s, reward, duration = self.play_option(option, env=env)
+                episode_rewards[sim] += reward
+                tt += duration
+
+        return episode_rewards.mean()

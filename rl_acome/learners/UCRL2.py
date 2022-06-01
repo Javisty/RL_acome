@@ -55,7 +55,9 @@ class UCRL2(AgentWithSimplePolicy):
         self.episode_counts = np.zeros((self.S, self.A), dtype=int)
 
         # State-action counts before episode. Init with 1
-        self.sa_counts = np.ones((self.S, self.A), dtype=int)
+        self.sa_counts = np.zeros((self.S, self.A), dtype=int)
+        # When (s, a) is visited first, don't increment sa_counts
+        self.already_visited = np.zeros((self.S, self.A), dtype=bool)
 
         # Accumulated rewards before episode
         self.r_accum = np.zeros((self.S, self.A))
@@ -216,6 +218,10 @@ class UCRL2(AgentWithSimplePolicy):
             a = self.policy(s)
             while self.episode_counts[s, a] < self.sa_counts[s, a]:
                 s_next, r, done, _ = self.env.step(a)
+
+                if not self.already_visited[s, a]:  # first visit of (s, a)
+                    self.already_visited[s, a] = True
+                    self.sa_counts[s, a] -= 1  # remove initial shift
 
                 # Update counts, except for sa_counts
                 self.episode_counts[s, a] += 1

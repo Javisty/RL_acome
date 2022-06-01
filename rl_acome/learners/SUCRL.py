@@ -91,6 +91,8 @@ class SUCRL(AgentWithSimplePolicy):
 
         # State-action counts before episode. Init with 1
         self.sa_counts = ma.ones((self.S, self.O), dtype=int)
+        # When (s, a) is visited first, don't increment sa_counts
+        self.already_visited = ma.zeros((self.S, self.O), dtype=bool)
 
         # Accumulated rewards before episode
         self.r_accum = ma.zeros((self.S, self.O))
@@ -106,6 +108,7 @@ class SUCRL(AgentWithSimplePolicy):
         # Mask array, to avoid considering non-available options
         self.episode_counts[mask] = ma.masked
         self.sa_counts[mask] = ma.masked
+        self.already_visited[mask] = ma.masked
         self.r_accum[mask] = ma.masked
         self.sas_counts[mask] = ma.masked
         self.t_accum[mask] = ma.masked
@@ -325,6 +328,10 @@ class SUCRL(AgentWithSimplePolicy):
             o = self.policy(s)
             while self.episode_counts[s, o] < self.sa_counts[s, o]:
                 s_next, r, tau = self.play_option(o)
+
+                if not self.already_visited[s, o]:  # first visit of (s, o)
+                    self.already_visited[s, o] = True
+                    self.sa_counts[s, o] -= 1  # remove initial shift
 
                 # Update counts, except for sa_counts
                 self.episode_counts[s, o] += 1

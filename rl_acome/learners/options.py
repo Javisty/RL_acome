@@ -111,8 +111,7 @@ class Option:
 
         assert self.is_initiation_state(s), "Not an initiation state!"
 
-        s_next, r, terminate = self.step()
-        R += r
+        terminate = False
         while not terminate:
             s_next, r, terminate = self.step()
             R += r

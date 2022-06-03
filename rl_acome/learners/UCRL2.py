@@ -55,7 +55,7 @@ class UCRL2(AgentWithSimplePolicy):
         self.episode_counts = np.zeros((self.S, self.A), dtype=int)
 
         # State-action counts before episode. Init with 1
-        self.sa_counts = np.zeros((self.S, self.A), dtype=int)
+        self.sa_counts = np.ones((self.S, self.A), dtype=int)
         # When (s, a) is visited first, don't increment sa_counts
         self.already_visited = np.zeros((self.S, self.A), dtype=bool)
 

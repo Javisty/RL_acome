@@ -1,7 +1,7 @@
 import numpy as np
 
 from rl_acome.envs.instances import rooms
-from rl_acome.learners import UCRL2, SUCRL, QL_options
+from rl_acome.learners import UCRL2, SUCRL, QL_options, Q_learning
 
 
 one_room = rooms.one_room()
@@ -35,5 +35,15 @@ class TestQL_options:
 
     def test_fit(self):
         agent = QL_options.QL_options(four_rooms, options)
+
+        agent.fit(50)
+
+
+class TestQL:
+    def test_init(self):
+        agent = Q_learning.Qlearning(four_rooms)
+
+    def test_fit(self):
+        agent = Q_learning.Qlearning(four_rooms)
 
         agent.fit(50)

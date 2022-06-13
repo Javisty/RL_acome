@@ -50,6 +50,90 @@ def one_room():
                      success_probability, reward_at, walls, default_reward)
 
 
+def pillar_room():
+    """
+    Generate an instance of a 5x5 room with a pillar.
+
+    The starting and goal states are in opposite corners.
+    Layout:
+    #######
+    #00001#
+    #00#00#
+    #00##0#
+    #00000#
+    #X0#00#
+    #######
+    """
+    nrows = 5
+    ncols = 5
+    start_coord = (4, 0)
+    terminal_states = ((0, 4),)
+    success_probability = 2/3
+    reward_at = {(0, 4): 1.}
+    default_reward = 0.
+    walls = ((1, 2), (2, 2), (2, 3), (4, 2))
+
+    return GridWorld(nrows, ncols, start_coord, terminal_states,
+                     success_probability, reward_at, walls, default_reward)
+
+
+def pillar_room_with_options():
+    """
+    Generate pillar room environment with a relevant option set.
+
+    The (non-optimal) options consist of going from start to one corner, and
+    from a corner to goal state.
+
+    Output:
+    -------
+    env : rlberry.envs.GridWorld
+        Pillar room environment.
+    options1 : OptionSet
+        Corner options + primitive.
+    options2 : OptionSet
+        Corner options.
+    """
+    env = pillar_room()
+
+    corners = [env.coord2index[coords] for coords in ((0, 0), (4, 4))]
+    start, goal = env.coord2index[4, 0], env.coord2index[0, 4]
+
+    # Useful functions to get the list of states corresponding to rooms
+    box_states = lambda xmin, xmax, ymin, ymax: [env.coord2index[a, b]
+                                                 for a, b in product(
+                                                         range(xmin, xmax+1),
+                                                         range(ymin, ymax+1))]
+    c2i = env.coord2index
+
+    # Termination
+    betas = np.zeros((3, env.Ns))
+    betas[range(3), corners + [goal]] = 1
+
+    # Policies (0: left, 1: right, 2: up, 3: down)
+    pis = np.zeros((3, env.Ns, env.Na))
+
+    pis[0, box_states(1, 4, 0, 1) + box_states(1, 4, 4, 4) +
+        [c2i[1, 3], c2i[4, 3]], 2] = 1
+    pis[0, box_states(3, 3, 2, 3) + box_states(0, 0, 0, 4), 0] = 1
+
+    pis[1, box_states(0, 2, 0, 1) + box_states(0, 4, 4, 4), 3] = 1
+    pis[1, box_states(4, 4, 0, 1), 2] = 1
+    pis[1, box_states(3, 3, 0, 3) +
+        [c2i[coords] for coords in ((0, 2), (0, 3), (1, 3), (4, 3))], 1] = 1
+
+    pis[2, box_states(1, 4, 0, 1) + box_states(0, 4, 4, 4), 2] = 1
+    pis[2, box_states(0, 0, 0, 3) +
+        [c2i[coords] for coords in ((1, 3), (3, 2), (3, 3), (4, 3))], 1] = 1
+
+    inits = [[start], [start], corners]
+
+    options1 = [Option(env, inits[i], pis[i], betas[i]) for i in range(3)]
+
+    primitives = create_primitive_options(env)
+
+    return env, OptionSet(env, options1 + primitives), OptionSet(env, options1)
+
+
 def four_rooms_with_options():
     """
     Generate four_rooms environment with some relevant option sets.

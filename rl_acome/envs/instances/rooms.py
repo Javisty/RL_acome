@@ -77,12 +77,17 @@ def pillar_room():
                      success_probability, reward_at, walls, default_reward)
 
 
-def pillar_room_with_options():
+def pillar_room_with_options(wrapper=None):
     """
     Generate pillar room environment with a relevant option set.
 
     The (non-optimal) options consist of going from start to one corner, and
     from a corner to goal state.
+
+    Parameters:
+    -----------
+    wrapper : environment wrapper or None, default None
+        If not None, wrap environment with wrapper(env).
 
     Output:
     -------
@@ -94,6 +99,8 @@ def pillar_room_with_options():
         Corner options.
     """
     env = pillar_room()
+    if wrapper:
+        env = wrapper(env)
 
     corners = [env.coord2index[coords] for coords in ((0, 0), (4, 4))]
     start, goal = env.coord2index[4, 0], env.coord2index[0, 4]
@@ -107,7 +114,7 @@ def pillar_room_with_options():
 
     # Termination
     betas = np.zeros((3, env.Ns))
-    betas[range(3), corners + [goal]] = 1
+    betas[:, corners + [start]] = 1
 
     # Policies (0: left, 1: right, 2: up, 3: down)
     pis = np.zeros((3, env.Ns, env.Na))

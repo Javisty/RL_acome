@@ -119,8 +119,8 @@ class UCRL2(AgentWithSimplePolicy):
         while diff > epsilon and n_iter < n_max:
             proba_max = self.inner_max_EVI(p_hat, d_p, u0)
             inner_max = proba_max @ u0
-            q = r_hat + d_r + inner_max  # Q-value function
-            u = np.max(q, axis=-1)  # update value
+             self.q = r_hat + d_r + inner_max  # Q-value function
+            u = np.max(self.q, axis=-1)  # update value
 
             grad = np.abs(u - u0)
             diff = np.max(grad) - np.min(grad)
@@ -131,7 +131,7 @@ class UCRL2(AgentWithSimplePolicy):
         if n_iter >= n_max:
             print("EVI didn't converge")
 
-        return u, greedy_policy(q)
+        return u, greedy_policy(self.q)
 
     def inner_max_EVI(self, p, bound, value):
         """
@@ -240,7 +240,6 @@ class UCRL2(AgentWithSimplePolicy):
             # Add episode counts to overall counts
             self.sa_counts += self.episode_counts
 
-        self.episode += 1
         self.tk = self.t
 
         self.pi = self.compute_empirical_policy()

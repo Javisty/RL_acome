@@ -173,7 +173,7 @@ class OptionSet:
         self.mask = state_options
         # Transform it to a dictionary of arrays of indices
         self.state_options = {s: np.where(state_options[s, :])[0]
-                              for s in range(S)}
+                              for s in range(S) if state_options[s].any()}
 
     def available_options(self, s):
         """Return the array of indices of options starting at state."""
@@ -205,8 +205,8 @@ class OptionSet:
 
 def create_primitive_options(env):
     """Return the list of primitive options."""
-    from rlberry.envs import FiniteMDP
-    assert isinstance(env, FiniteMDP)
+    assert isinstance(env.observation_space, spaces.Discrete)
+    assert isinstance(env.action_space, spaces.Discrete)
 
     pi = np.zeros((env.A, env.S, env.A))
     for a in range(env.A):

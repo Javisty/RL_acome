@@ -32,6 +32,8 @@ class QL_options(Agent):
         # check environment
         assert isinstance(self.env.observation_space, spaces.Discrete)
         assert isinstance(self.env.action_space, spaces.Discrete)
+        assert isinstance(options, OptionSet)
+        assert options.env == env, "The options environment doesn't match env!"
 
         self.options = options
         if isinstance(alpha, float):  # use alpha as a callable object
@@ -110,8 +112,7 @@ class QL_options(Agent):
             self.reward += r
             self.t += tau
 
-        self.pi = self.get_policy()
-        return self.pi, self.reward
+        return self.get_policy(), self.reward
 
     def get_policy(self):
         """Return greedy policy w.r.t. current Q-value estimate."""

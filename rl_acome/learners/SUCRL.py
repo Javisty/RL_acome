@@ -221,8 +221,8 @@ class SUCRL(Agent):
             r_tilde = np.minimum(r_hat + d_r, r_max * tau_max)
             tau_tilde = np.clip(tau_hat - np.sign(r_tilde + tau * diff_u)
                                 * d_tau, tau_max, tau_min)
-            q = (r_tilde + tau * diff_u) / tau_tilde  # Q-value function
-            u = np.max(q, axis=-1) + u0  # update value
+            self.q = (r_tilde + tau * diff_u) / tau_tilde  # Q-value function
+            u = np.max(self.q, axis=-1) + u0  # update value
 
             grad = np.abs(u - u0)
             diff = np.max(grad) - np.min(grad)
@@ -233,7 +233,7 @@ class SUCRL(Agent):
         if n_iter >= n_max:
             print("EVI didn't converge")
 
-        return u, greedy_policy(q)
+        return u, greedy_policy(self.q)
 
     def inner_max_EVI(self, p, bound, value):
         """
@@ -344,12 +344,11 @@ class SUCRL(Agent):
                     s = self.env.reset()
 
                 o = self.policy(s)
-                self.t += 1
+                self.t += tau
 
             # Add episode counts to overall sa_counts
             self.sa_counts += self.episode_counts
 
-        self.episode += 1
         self.tk = self.t
 
         self.pi = self.compute_empirical_policy()

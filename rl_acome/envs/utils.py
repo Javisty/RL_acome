@@ -1,5 +1,8 @@
 """Bunch of useful functions."""
 import numpy as np
+import matplotlib.pyplot as plt
+
+from rlberry.envs import GridWorld
 
 
 def assert_is_transition_matrix(P):
@@ -43,3 +46,25 @@ class Constant:
 
     def mean(self):
         return self.v
+
+
+def plot_gridworld(env, colormap='Oranges', save_path=None):
+    """Plot Gridworld with walls, start, terminal and reward states."""
+    assert isinstance(env, GridWorld), "Only GridWorld environments!"
+
+    state_data = np.zeros(env.observation_space.n)
+    c2i = env.coord2index
+
+    # Color start, reward and terminal states
+    state_data[c2i[env.start_coord]] = 0.25
+    state_data[[c2i[s] for s in env.reward_at]] = 0.5
+    state_data[[c2i[s] for s in env.terminal_states]] = 1
+
+    img = np.zeros((env.nrows+2, env.ncols+2, 3))
+    img[1:-1, 1:-1, :] = env.get_layout_img(state_data=state_data,
+                                            colormap_name=colormap)
+
+    if save_path:
+        plt.imsave(save_path, img)
+
+    return plt.imshow(img)

@@ -66,3 +66,29 @@ def greedy_policy(q):
         policy[s] = np.random.choice(np.where(q[s, :] == np.max(q[s, :]))[0])
 
     return policy
+
+
+def greedy_stochastic_policy(q):
+    """
+    Return the greedy policy for a Q-value function, in a stochastic form.
+
+    The greedy policy gives the same probability weight to all maximisers of
+    the Q-value.
+
+    Parameters:
+    -----------
+    q : (S, A) numpy.array
+        Q-value vector.
+
+    Output:
+    -------
+    S numpy.array, giving the action chosen for each state.
+    """
+    S, A = q.shape
+    policy = np.zeros((S, A), dtype=int)
+
+    for s in range(S):
+        maximisers = np.where(q[s, :] == np.max(q[s, :]))[0]
+        policy[s, maximisers] = 1 / len(maximisers)
+
+    return policy

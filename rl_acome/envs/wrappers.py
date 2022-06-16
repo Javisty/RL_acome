@@ -3,7 +3,7 @@
 import numpy as np
 from rlberry.envs import Wrapper
 
-from .utils import greedy_policy
+from .utils import greedy_stochastic_policy
 
 
 class EvaluatingEnv(Wrapper):
@@ -37,7 +37,7 @@ class EvaluatingEnv(Wrapper):
 
         self.opti_pi = opti_policy
         self.opti_Q = opti_Q
-        if opti_Q:
+        if opti_Q is not None:
             self.opti_V = np.max(opti_Q, axis=-1)
         else:
             self.opti_V = opti_V
@@ -78,8 +78,9 @@ class EvaluatingEnv(Wrapper):
         if self.opti_pi is not None:
             pi = self.opti_pi
         else:
-            assert self.opti_Q, "No optimal policy nor Q function provided!"
-            pi = greedy_policy(self.opti_Q)
+            assert self.opti_Q is not None, (
+                "No optimal policy nor Q function provided!")
+            pi = greedy_stochastic_policy(self.opti_Q)
 
         env = self.env
         self.opti_r = np.zeros(self.S)
@@ -172,7 +173,8 @@ class EvaluatingEnv(Wrapper):
         hence the optimal gain is independent of the starting state !!!
 
         The environment initial distribution is then used.
-        Use self.opti_pi if provided, else greedy_policy(self.opti_Q).
+        Use self.opti_pi if provided, greedy_stochastic_policy(self.opti_Q)
+        otherwise.
         Overwrite self.opti_gain.
 
         See self.estimate_gain
@@ -192,8 +194,9 @@ class EvaluatingEnv(Wrapper):
         if self.opti_pi is not None:
             pi = self.opti_pi
         else:
-            assert self.opti_Q, "No available optimal policy!"
-            pi = greedy_policy(self.opti_Q)
+            assert self.opti_Q is not None, (
+                "No available optimal policy!")
+            pi = greedy_stochastic_policy(self.opti_Q)
 
         s0 = self.env.reset()
         self.opti_gain = self.estimate_state_gain(pi, s0, traj_length, burn_in)
@@ -201,6 +204,7 @@ class EvaluatingEnv(Wrapper):
 
     def value_error(self, value):
         """Return error of value w.r.t. optimal value."""
-        assert self.opti_V, "Optimal value wasn't given!"
+        assert self.opti_V is not None, (
+            "Optimal value wasn't given!")
 
         return ((value - self.opti_V)**2).mean()

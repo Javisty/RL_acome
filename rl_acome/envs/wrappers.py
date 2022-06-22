@@ -1,6 +1,7 @@
 """Define environment wrappers."""
 
 import numpy as np
+import matplotlib.pyplot as plt
 from rlberry.envs import Wrapper
 
 from .utils import greedy_stochastic_policy
@@ -42,21 +43,25 @@ class EvaluatingEnv(Wrapper):
         else:
             self.opti_V = opti_V
         self.opti_r = opti_reward
+        self.opti_gain = opti_gain
 
         self.S, self.A = env.observation_space.n, env.action_space.n
 
         self._init_values()
+        self.step = self._step  # set the step method to default
 
     def _init_values(self):
         """Set counters to 0."""
-        self.sa = np.zeros((self.S, self.A), dtype=int)
-        self.r = np.zeros((self.S, self.A))
+        self.t = 0  # number of time-steps
+        self.sa = np.zeros((self.S, self.A), dtype=int)  # number of visits
+        self.r = np.zeros((self.S, self.A))  # accumulated reward
         self.episodes_steps = [0]  # number of states per episode
 
-    def step(self, action):
+    def _step(self, action):
         """Execute action, and update statistics accordingly to results."""
         state, reward, done, info = self.env.step(action)
 
+        self.t += 1
         self.sa[state, action] += 1
         self.r[state, action] += reward
         self.episodes_steps[-1] += 1
@@ -91,6 +96,7 @@ class EvaluatingEnv(Wrapper):
                 a = np.random.choice(self.A, p=pi[s, :])
                 _, r, _, _ = env.step(a)
                 R += r
+
             self.opti_r[s] = R / n_iter
 
         return self.opti_r
@@ -125,14 +131,19 @@ class EvaluatingEnv(Wrapper):
 
         for _ in range(burn_in):
             a = np.random.choice(self.A, p=policy[s, :])
-            s, _, _, _ = env.step(a)
+            s, _, done, _ = env.step(a)
+            if done:
+                s = env.reset()
 
         R = 0  # start collecting rewards
         t = traj_length - burn_in
         for _ in range(t):
             a = np.random.choice(self.A, p=policy[s, :])
-            s, r, _, _ = env.step(a)
+            s, r, done, _ = env.step(a)
             R += r
+
+            if done:
+                s = env.reset()
 
         return R / t
 
@@ -208,3 +219,108 @@ class EvaluatingEnv(Wrapper):
             "Optimal value wasn't given!")
 
         return ((value - self.opti_V)**2).mean()
+
+    def start_recording_regret(self, delta=100, nb_steps=None):
+        """
+        Record the regret every delta steps for nb_steps.
+
+        self.opti_gain must be not None.
+        Overwrite the current step method so that the EvaluatingEnv stores
+        samples of the regret. The sampling frequency is given by times, and
+        the duration of the recording by nb_steps.
+
+        Notes:
+        ------
+        It is more efficient to specify the total number of steps (array VS
+        list).
+
+        Parameters:
+        -----------
+        delta : 0 < int, default 100
+            Frequency of regret recording. Store regret every delta time steps.
+        nb_steps : 0 < int or None, default None
+            The number of steps until which regret is stored. If None, regret
+            is appended to a list. Otherwise, regret is stored in an array.
+
+        Output:
+        -------
+        regret : list or (nb_steps) array
+            History of regret.
+        """
+        assert self.opti_gain is not None, (
+            "No optimal gain available to compute regret!")
+
+        # Save current step method
+        self._previous_step = self.step  # save current step method
+
+        self._delta_times = delta
+
+        self._R = 0  # accumulated reward since last record
+        if nb_steps:  # store in arrays
+            self._nb_steps = nb_steps
+            self.regret = np.full((nb_steps // delta) + 1, np.nan)
+            self.regret[0] = 0
+            self._regret_times = np.arange(0, nb_steps + 1, delta)
+            # Next time step of recording and corresponding index
+            self._next_t, self._idx = self._regret_times[1], 1
+
+            self.step = self._step_with_array_regret
+
+        else:  # store in lists
+            self.regret = [0]
+            self._regret_times = [0]  # time steps of recording
+            # Next time step of recording and corresponding index
+            self._next_t = delta
+
+            self.step = self._step_with_list_regret
+
+    def stop_recording_regret(self):
+        """Stop recording regret, and fall back to previous step method."""
+        self.step = self._previous_step
+
+    def _step_with_array_regret(self, action):
+        """Wrap previous step method to record regret in an array."""
+        state, reward, done, info = self._previous_step(action)
+
+        self._R += reward
+        t = self.t
+        if t < self._nb_steps:
+            if t == self._next_t:
+                self.regret[self._idx] = t * self.opti_gain - self._R
+                self._idx += 1
+                self._next_t = self._regret_times[self._idx]
+
+        else:  # stop regret recording
+            self.stop_recording_regret()
+
+        return state, reward, done, info
+
+    def _step_with_list_regret(self, action):
+        """Wrap previous step method to record regret in a list."""
+        state, reward, done, info = self._step(action)
+
+        self._R += reward
+        t = self.t
+        if t == self._next_t:
+            self.regret.append(t * self.opti_gain - self._R)
+            self._regret_times.append(t)
+            self._next_t += self._delta_times
+
+        return state, reward, done, info
+
+    def plot_regret(self, with_x_fun=False, title=None):
+        """Plot T x opti_gain - R along time steps."""
+        fig, ax = plt.subplots()
+        ax.plot(self._regret_times, self.regret)
+
+        if with_x_fun:
+            ax.plot(self._regret_times, self._regret_times, c='k')
+
+        if title:
+            ax.set_title(title)
+        else:
+            ax.set_title("Regret over time")
+
+        ax.set_xlabel("Time steps")
+        ax.set_ylabel("Regret")
+        return fig

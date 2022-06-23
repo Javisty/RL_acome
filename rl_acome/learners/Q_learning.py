@@ -1,4 +1,5 @@
 """Q-learning algorithm from Watkins (1989)."""
+
 import numpy as np
 
 import gym.spaces as spaces
@@ -74,11 +75,14 @@ class Qlearning(AgentWithSimplePolicy):
         state = self.env.state
         while self.t <= budget:
             action = self.choose_action(state)
-            # print((f"Playing action {action} at time step {self.t} "
-            #        f"from state {state}"))
+
+            if self.t % 1000 == 0:
+                print((f"Playing action {action} at time step {self.t} "
+                       f"from state {state}"), end='\r')
 
             s_next, r, done, _ = self.env.step(action)
 
+            # Update Q-value estimate
             l_rate = alpha(state, action, self.t)
             q_bar = r + gamma * np.max(Q[s_next])
             Q[state, action] = (1 - l_rate) * Q[state, action] + l_rate * q_bar

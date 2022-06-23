@@ -1,4 +1,5 @@
 """Q-Learning with options from Sutton et al. (1999)."""
+
 import numpy as np
 from numpy import ma
 
@@ -99,11 +100,13 @@ class QL_options(Agent):
         state = self.env.state
         while self.t <= budget:
             option = self.choose_option(state)
+
             print((f"Playing option {option} at time step {self.t} "
-                   f"from state {state}"))
+                   f"from state {state}"), end='\r')
 
             s_next, r, tau = self.play_option(option)
 
+            # Update Q-value estimate
             l_rate = alpha(state, option, self.t)
             q_bar = r + gamma**tau * np.max(Q[s_next])
             Q[state, option] = (1 - l_rate) * Q[state, option] + l_rate * q_bar

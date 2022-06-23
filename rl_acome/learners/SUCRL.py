@@ -1,4 +1,5 @@
 """SMDP-UCRL from Fruit & Lazaric (2017)."""
+
 import numpy as np
 from numpy import ma
 
@@ -137,20 +138,22 @@ class SUCRL(Agent):
                 np.log(240 * self.S * self.O * self.tk**7 / self.delta)
                 <= self.sa_counts)
 
-    def reward_bound(self, Nk_gt_cond=None):
+    def reward_bound(self, Nk_cond=None):
         """Return the reward optimistic bounds."""
         S, O, tk, delta = self.S, self.O, self.tk, self.delta
         Nk, s_r, b_r = self.sa_counts, self.sigma_r, self.b_r
 
-        Nk_gt_cond = self.counts_condition() if Nk_gt_cond is None else Nk_gt_cond
+        # Nk_cond indicates which formula to use for every state-action pair
+        Nk_cond = self.counts_condition() if Nk_cond is None else Nk_cond
+
         bound = np.zeros((S, O))
 
         # If sa_counts >= condition
-        bound[Nk_gt_cond] = s_r * np.sqrt(14 * np.log(2 * S * O * tk / delta)
-                                          / Nk[Nk_gt_cond])
+        bound[Nk_cond] = s_r * np.sqrt(14 * np.log(2 * S * O * tk / delta)
+                                       / Nk[Nk_cond])
         # If sa_counts < condition
-        bound[~Nk_gt_cond] = (14 * b_r * np.log(2 * S * O * tk / delta)
-                              / Nk[~Nk_gt_cond])
+        bound[~Nk_cond] = (14 * b_r * np.log(2 * S * O * tk / delta)
+                           / Nk[~Nk_cond])
 
         return bound
 
@@ -159,22 +162,24 @@ class SUCRL(Agent):
         S, O, tk, delta = self.S, self.O, self.tk, self.delta
         Nk = self.sa_counts
 
-        return np.sqrt(14 * S * np.log(2 * S * O * tk / delta)/Nk)
+        return np.sqrt(14 * S * np.log(2 * S * O * tk / delta) / Nk)
 
-    def holding_time_bound(self, Nk_gt_cond=None):
+    def holding_time_bound(self, Nk_cond=None):
         """Return the holding time optimistic bounds."""
         S, O, tk, delta = self.S, self.O, self.tk, self.delta
         Nk, s_tau, b_tau = self.sa_counts, self.sigma_tau, self.b_tau
 
-        Nk_gt_cond = self.counts_condition() if Nk_gt_cond is None else Nk_gt_cond
+        # Nk_cond indicates which formula to use for every state-action pair
+        Nk_cond = self.counts_condition() if Nk_cond is None else Nk_cond
+
         bound = np.zeros((S, O))
 
         # If sa_counts >= condition
-        bound[Nk_gt_cond] = s_tau * np.sqrt(14 * np.log(2 * S * O * tk / delta)
-                                            / Nk[Nk_gt_cond])
+        bound[Nk_cond] = s_tau * np.sqrt(14 * np.log(2 * S * O * tk / delta)
+                                         / Nk[Nk_cond])
         # If s_counts < condition
-        bound[~Nk_gt_cond] = (14 * b_tau * np.log(2 * S * O * tk / delta)
-                              / Nk[~Nk_gt_cond])
+        bound[~Nk_cond] = (14 * b_tau * np.log(2 * S * O * tk / delta)
+                           / Nk[~Nk_cond])
 
         return bound
 
@@ -221,6 +226,7 @@ class SUCRL(Agent):
             r_tilde = np.minimum(r_hat + d_r, r_max * tau_max)
             tau_tilde = np.clip(tau_hat - np.sign(r_tilde + tau * diff_u)
                                 * d_tau, tau_max, tau_min)
+
             self.q = (r_tilde + tau * diff_u) / tau_tilde  # Q-value function
             u = np.max(self.q, axis=-1) + u0  # update value
 
@@ -276,10 +282,10 @@ class SUCRL(Agent):
         r_hat, p_hat, tau_hat = self.compute_estimates()
         condition = self.counts_condition()
 
-        d_r = self.reward_bound(Nk_gt_cond=condition)
+        d_r = self.reward_bound(Nk_cond=condition)
         d_p = self.transition_bounds()
-        d_tau = self.holding_time_bound(Nk_gt_cond=condition)
-        eps = 1/np.sqrt(self.tk)
+        d_tau = self.holding_time_bound(Nk_cond=condition)
+        eps = 1 / np.sqrt(self.tk)
 
         return self.extended_value_iteration(r_hat, p_hat, tau_hat,
                                              d_r, d_p, d_tau, eps)[1]
@@ -291,7 +297,7 @@ class SUCRL(Agent):
         d_r = np.zeros_like(r_hat)
         d_p = np.zeros_like(p_hat[:, :, 0])
         d_tau = np.zeros_like(tau_hat)
-        eps = 1/np.sqrt(self.tk)
+        eps = 1 / np.sqrt(self.tk)
 
         return self.extended_value_iteration(r_hat, p_hat, tau_hat,
                                              d_r, d_p, d_tau, eps)[1]
@@ -316,14 +322,16 @@ class SUCRL(Agent):
         """
         s = self.env.state  # current state and action
 
-        while self.t < budget:
+        while self.t < budget:  # start new episode
             self.episode += 1
             self.tk = self.t
-            print(f"Starting episode {self.episode} at time-step {self.t}")
 
-            self.episode_counts.fill(0)
+            print(f"Starting episode {self.episode} at time-step {self.t}",
+                  end='\r')
 
-            self.pi = self.compute_optimistic_policy()
+            self.episode_counts.fill(0)  # reset
+
+            self.pi = self.compute_optimistic_policy()  # policy for episode
 
             o = self.policy(s)
             while self.episode_counts[s, o] < self.sa_counts[s, o]:
@@ -340,6 +348,8 @@ class SUCRL(Agent):
                 self.sas_counts[s, o, s_next] += 1
 
                 s = s_next
+
+                # No available options in s. Can't happen with admissible options
                 if s not in self.options.state_options:
                     s = self.env.reset()
 

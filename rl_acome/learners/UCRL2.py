@@ -1,4 +1,5 @@
 """UCRL2 learning algorithm from Jaksch et al. (2010)."""
+
 import numpy as np
 
 import gym.spaces as spaces
@@ -69,7 +70,8 @@ class UCRL2(AgentWithSimplePolicy):
 
     def compute_estimates(self):
         """Compute and returns current estimates for reward and transitions."""
-        return self.r_accum/self.sa_counts, self.sas_counts/self.sa_counts[:, :, np.newaxis]
+        return (self.r_accum / self.sa_counts,
+                self.sas_counts / self.sa_counts[:, :, np.newaxis])
 
     def reward_bound(self):
         """Return the reward optimistic bounds."""
@@ -119,7 +121,7 @@ class UCRL2(AgentWithSimplePolicy):
         while diff > epsilon and n_iter < n_max:
             proba_max = self.inner_max_EVI(p_hat, d_p, u0)
             inner_max = proba_max @ u0
-             self.q = r_hat + d_r + inner_max  # Q-value function
+            self.q = r_hat + d_r + inner_max  # Q-value function
             u = np.max(self.q, axis=-1)  # update value
 
             grad = np.abs(u - u0)
@@ -206,14 +208,16 @@ class UCRL2(AgentWithSimplePolicy):
         s = self.env.state  # current state and action
         print()
 
-        while self.t < budget:
+        while self.t < budget:  # start new episode
             self.episode += 1
             self.tk = self.t
-            print(f"\rStarting episode {self.episode} at time-step {self.t}")
 
-            self.episode_counts.fill(0)
+            print(f"\rStarting episode {self.episode} at time-step {self.t}",
+                  end='\r')
 
-            self.pi = self.compute_optimistic_policy()
+            self.episode_counts.fill(0)  # reset
+
+            self.pi = self.compute_optimistic_policy()  # policy for episode
 
             a = self.policy(s)
             while self.episode_counts[s, a] < self.sa_counts[s, a]:
@@ -242,7 +246,7 @@ class UCRL2(AgentWithSimplePolicy):
 
         self.tk = self.t
 
-        self.pi = self.compute_empirical_policy()
+        self.pi = self.compute_empirical_policy()  # no optimistic bonus
         return self.pi, self.r_accum.sum()
 
     def policy(self, state):

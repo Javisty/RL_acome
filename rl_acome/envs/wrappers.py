@@ -50,6 +50,8 @@ class EvaluatingEnv(Wrapper):
         self._init_values()
         self.step = self._step  # set the step method to default
 
+        self._previous_step = []  # stack of step methods
+
     def _init_values(self):
         """Set counters to 0."""
         self.t = 0  # number of time-steps
@@ -220,91 +222,52 @@ class EvaluatingEnv(Wrapper):
 
         return ((value - self.opti_V)**2).mean()
 
-    def start_recording_regret(self, delta=100, nb_steps=None):
+    def start_recording_regret(self, delta=100):
         """
-        Record the regret every delta steps for nb_steps.
+        Record the regret every delta steps.
 
         self.opti_gain must be not None.
-        Overwrite the current step method so that the EvaluatingEnv stores
-        samples of the regret. The sampling frequency is given by times, and
-        the duration of the recording by nb_steps.
-
-        Notes:
-        ------
-        It is more efficient to specify the total number of steps (array VS
-        list).
+        Wrap the current step method so that the EvaluatingEnv stores
+        samples of the regret. The sampling frequency is given by delta.
 
         Parameters:
         -----------
         delta : 0 < int, default 100
             Frequency of regret recording. Store regret every delta time steps.
-        nb_steps : 0 < int or None, default None
-            The number of steps until which regret is stored. If None, regret
-            is appended to a list. Otherwise, regret is stored in an array.
 
         Output:
         -------
-        regret : list or (nb_steps) array
+        regret : list
             History of regret.
         """
         assert self.opti_gain is not None, (
             "No optimal gain available to compute regret!")
 
-        # Save current step method
-        self._previous_step = self.step  # save current step method
+        self._previous_step.append(self.step)  # save current step method
 
-        self._delta_times = delta
-
+        self._delta_regret = delta
         self._R = 0  # accumulated reward since last record
-        if nb_steps:  # store in arrays
-            self._nb_steps = nb_steps
-            self.regret = np.full((nb_steps // delta) + 1, np.nan)
-            self.regret[0] = 0
-            self._regret_times = np.arange(0, nb_steps + 1, delta)
-            # Next time step of recording and corresponding index
-            self._next_t, self._idx = self._regret_times[1], 1
 
-            self.step = self._step_with_array_regret
+        self.regret = [0]
+        self._regret_times = [0]  # time steps of recording
+        self._next_t_regret = delta  # Next time step of recording
 
-        else:  # store in lists
-            self.regret = [0]
-            self._regret_times = [0]  # time steps of recording
-            # Next time step of recording and corresponding index
-            self._next_t = delta
-
-            self.step = self._step_with_list_regret
+        self.step = self._step_with_regret
 
     def stop_recording_regret(self):
         """Stop recording regret, and fall back to previous step method."""
-        self.step = self._previous_step
+        self.step = self._previous_step.pop()
 
-    def _step_with_array_regret(self, action):
-        """Wrap previous step method to record regret in an array."""
-        state, reward, done, info = self._previous_step(action)
-
-        self._R += reward
-        t = self.t
-        if t < self._nb_steps:
-            if t == self._next_t:
-                self.regret[self._idx] = t * self.opti_gain - self._R
-                self._idx += 1
-                self._next_t = self._regret_times[self._idx]
-
-        else:  # stop regret recording
-            self.stop_recording_regret()
-
-        return state, reward, done, info
-
-    def _step_with_list_regret(self, action):
+    def _step_with_regret(self, action):
         """Wrap previous step method to record regret in a list."""
-        state, reward, done, info = self._step(action)
+        state, reward, done, info = self._previous_step[-1](action)
 
         self._R += reward
         t = self.t
-        if t == self._next_t:
+        if t == self._next_t_regret:
             self.regret.append(t * self.opti_gain - self._R)
             self._regret_times.append(t)
-            self._next_t += self._delta_times
+            self._next_t_regret += self._delta_regret
 
         return state, reward, done, info
 
